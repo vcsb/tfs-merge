@@ -55,8 +55,14 @@
             </StackPanel>
 
             <!-- Tfs.exe path -->
-            <TextBlock Grid.Row="4" Text="Tfs.exe path:" HorizontalAlignment="Right" VerticalAlignment="Center"/>
-            <TextBox Grid.Row="4" Grid.Column="2" x:Name="TfsExePath" />
+            <TextBlock Grid.Row="4" Text="Tfs.exe path:" HorizontalAlignment="Right" />
+            <DockPanel Grid.Row="4" Grid.Column="2">
+                <Button DockPanel.Dock="Right" x:Name="TestTfsExecutable" Content="Test"
+                        Margin="5,0,0,0" 
+                        Height="{Binding ElementName=ServerAddress, Path=ActualHeight}" Padding="0" FontSize="10"
+                        ToolTip="Try to launch the file with the Status parameter. &#x0a;Need to have one branch selected as the working directory."/>
+                <TextBox x:Name="TfsExePath" />
+            </DockPanel>
 
             <!-- Branches -->
             <DockPanel Grid.Column="2" Grid.Row="6">
@@ -64,8 +70,8 @@
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button x:Name="RefreshBranches" Content="{iconPacks:PackIconModern Refresh}" Margin="5,0" Style="{StaticResource IconButtonStyle}"
                         ToolTip="Load branches from memory (last opened settings file)."/>
-                    <Button x:Name="SaveBranches" Content="{iconPacks:PackIconModern Save}" Style="{StaticResource IconButtonStyle}" 
-                        ToolTip="Save branches to default user settings file." />
+                    <Button x:Name="SaveSettings" Content="{iconPacks:PackIconModern Save}" Style="{StaticResource IconButtonStyle}" 
+                        ToolTip="Save branches and file paths to default user settings file." />
                 </StackPanel>
             </DockPanel>
             <StackPanel Grid.Row="8" HorizontalAlignment="Right" VerticalAlignment="Center">

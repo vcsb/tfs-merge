@@ -98,14 +98,32 @@ namespace TFSMergingTool.ConnectionSetup
         private void LoadSettingsFile(string filename)
         {
             Output.WriteLine("Loading settings file {0}...", filename);
-            var success = UserSettings.ReadFromFile(filename);
-            if (!success || !UserSettings.IsValid)
+
+            var errorMessage = string.Empty;
+            try
             {
-                var msg = "Failed to load settings file " + filename;
+                UserSettings.ReadFromFile(filename);
+            }
+            catch (InvalidSettingsFileException ex)
+            {
+                errorMessage = ex.Message;
+            }
+
+            if (!string.IsNullOrEmpty(errorMessage) || !UserSettings.IsValid)
+            {
+                var msg = $"Failed to load settings file {filename}";
+                if (!string.IsNullOrEmpty(errorMessage))
+                    msg += Environment.NewLine + errorMessage;
+                msg += Environment.NewLine + "Please fix the settings file and reload it with the button.";
+
                 Output.WriteLine(msg);
                 Popups.ShowMessage(null, msg, MessageBoxImage.Asterisk, "Load failed");
+
+                return;
             }
+
             ServerAddress = UserSettings.ServerUri.ToString();
+            TfsExePath = UserSettings.TfsExecutable.FullName;
 
             Branches.Clear();
             foreach (var branch in UserSettings.BranchPathList)
@@ -113,8 +131,6 @@ namespace TFSMergingTool.ConnectionSetup
                 var branchWm = new BranchViewModel(branch.Item2, branch.Item1);
                 Branches.Add(branchWm);
             }
-
-            TfsExePath = UserSettings.TfsExecutable.FullName;
 
             Output.WriteLine("Reading settings finished.");
         }
@@ -133,6 +149,44 @@ namespace TFSMergingTool.ConnectionSetup
                     UserSettings.TfsExecutable = fi;
                 }
             }
+        }
+
+        public void TestTfsExecutable()
+        {
+            var branch = SelectedBranche;
+
+            if (branch == null)
+            {
+                Popups.ShowMessage("Please select a branch; it will be used as the working directory from where to launch the tool.", MessageBoxImage.Asterisk);
+                return;
+            }
+
+            if (!File.Exists(TfsExePath))
+            {
+                Popups.ShowMessage($"TFS executable file {TfsExePath} does not exist", MessageBoxImage.Error);
+                return;
+            }
+
+            if (!Directory.Exists(branch.Path))
+            {
+                Popups.ShowMessage($"Working directory {branch.Path} does not exist", MessageBoxImage.Error);
+                return;
+            }
+
+            // This command will return immediately, so need to run it in a new shell for the user to be able to see the output.
+            // https://docs.microsoft.com/en-us/azure/devops/repos/tfvc/status-command
+
+            var p = new Process();
+            var psi = new ProcessStartInfo
+            {
+                WorkingDirectory = branch.Path,
+                FileName = "CMD.EXE", 
+                Arguments = $"/K \"{TfsExePath}\" status",
+                UseShellExecute = false,
+            };
+            p.StartInfo = psi;
+            p.Start();
+            p.WaitForExit();
         }
 
         #endregion
@@ -304,14 +358,14 @@ namespace TFSMergingTool.ConnectionSetup
 
         public IObservableCollection<BranchViewModel> Branches { get; set; }
         private BranchViewModel _selectedBranch;
-        public BranchViewModel SelectedBranch
+        public BranchViewModel SelectedBranche // Caliburn naming convention is "Branches" without the last 's'
         {
             get => _selectedBranch;
             set
             {
                 if (value == _selectedBranch) return;
                 _selectedBranch = value;
-                NotifyOfPropertyChange(() => SelectedBranch);
+                NotifyOfPropertyChange(() => SelectedBranche);
             }
         }
 
@@ -319,45 +373,45 @@ namespace TFSMergingTool.ConnectionSetup
         {
             var item = new BranchViewModel("Write the local path here", true);
             Branches.Add(item);
-            SelectedBranch = item;
+            SelectedBranche = item;
         }
 
         public void RemoveBranch()
         {
-            var index = Branches.IndexOf(SelectedBranch);
+            var index = Branches.IndexOf(SelectedBranche);
             if (index < 0) return;
 
             Branches.RemoveAt(index);
             if (Branches.Count > 0)
             {
                 if (index == Branches.Count)
-                    SelectedBranch = Branches[index - 1];
+                    SelectedBranche = Branches[index - 1];
                 else
-                    SelectedBranch = Branches[index];
+                    SelectedBranche = Branches[index];
             }
         }
 
         public void MoveBranchUp()
         {
-            var item = SelectedBranch;
+            var item = SelectedBranche;
             var index = Branches.IndexOf(item);
             if (index > 0)
             {
                 Branches.RemoveAt(index);
                 Branches.Insert(index - 1, item);
-                SelectedBranch = item;
+                SelectedBranche = item;
             }
         }
 
         public void MoveBranchDown()
         {
-            var item = SelectedBranch;
+            var item = SelectedBranche;
             var index = Branches.IndexOf(item);
             if (index < Branches.Count - 1)
             {
                 Branches.RemoveAt(index);
                 Branches.Insert(index + 1, item);
-                SelectedBranch = item;
+                SelectedBranche = item;
             }
         }
 
@@ -371,7 +425,7 @@ namespace TFSMergingTool.ConnectionSetup
             }
         }
 
-        public void SaveBranches()
+        public void SaveSettings()
         {
             if (Branches.Count <= 0) return;
 
@@ -381,6 +435,9 @@ namespace TFSMergingTool.ConnectionSetup
                 pathList.Add(Tuple.Create(branch.IsEnabled, branch.Path));
             }
             UserSettings.BranchPathList = pathList;
+
+            UserSettings.TfsExecutable = new FileInfo(TfsExePath);
+            
             UserSettings.WriteToFile(UserSettings.DefaultLocalSettingsFileName);
         }
         #endregion
